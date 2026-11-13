@@ -1,5 +1,12 @@
 package com.hestalang.uswire.data.validation
 
+import com.wireguard.config.Config
+import java.io.ByteArrayInputStream
+
+/**
+ * Performs structural checks and then delegates syntax and field validation
+ * to the same parser used by the WireGuard tunnel backend.
+ */
 object ConfigValidator {
     fun validate(contents: String): Result<Unit> {
         if (contents.isBlank()) {
@@ -24,6 +31,9 @@ object ConfigValidator {
             )
         }
 
-        return Result.success(Unit)
+        return runCatching {
+            Config.parse(ByteArrayInputStream(contents.toByteArray(Charsets.UTF_8)))
+            Unit
+        }
     }
 }
