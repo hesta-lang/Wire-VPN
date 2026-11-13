@@ -17,7 +17,7 @@
 2. USWire validates it with the WireGuard parser and stores the profile encrypted in app-private storage.
 3. The user taps Connect. The Activity requests Android's VpnService authorization when needed.
 4. WireGuardController parses the stored profile and calls GoBackend.setState with Tunnel.State.UP on a worker thread.
-5. The GoBackend VpnService establishes the Android TUN interface. State callbacks are mapped to the UI.
+5. The WireGuard AAR contributes its GoBackend VpnService declaration through Android manifest merging and establishes the TUN interface. State callbacks are mapped to the UI.
 6. Disconnect calls GoBackend.setState with Tunnel.State.DOWN.
 
 The GoBackend and Tunnel objects are held by a process-wide singleton because GoBackend associates its VPN service with the backend instance that started it.
