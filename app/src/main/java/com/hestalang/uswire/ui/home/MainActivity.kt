@@ -185,7 +185,7 @@ class MainActivity : Activity() {
 
         val busy = state == VpnState.CONNECTING || state == VpnState.DISCONNECTING
         connectButton.isEnabled = !busy
-        disconnectButton.isEnabled = state == VpnState.CONNECTED
+        disconnectButton.isEnabled = state == VpnState.CONNECTED || state == VpnState.ERROR
     }
 
     private fun showSavedConfig() {
