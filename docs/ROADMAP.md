@@ -9,7 +9,7 @@
 
 ## 0.2.0-alpha — WireGuard engine
 - [x] Integrate the official WireGuard Tunnel backend.
-- [x] Add Android VPN permission flow and register the backend VpnService.
+- [x] Add Android VPN permission flow and use the VpnService entry supplied by the WireGuard AAR manifest.
 - [x] Implement connect/disconnect controls and backend state reporting.
 - [x] Parse imported profiles with the official WireGuard parser.
 - [ ] Confirm CI build and unit tests.
