@@ -1,20 +1,23 @@
 # USWire Android — 0.1.0-alpha
 
-Cliente Android experimental para administrar túneles WireGuard. Esta entrega es un **esqueleto de proyecto**, no un APK terminado: todavía requiere integrar y probar el ciclo real de `GoBackend` de WireGuard en un dispositivo Android 10+.
+Cliente Android experimental para importar y administrar perfiles WireGuard.
 
 ## Requisitos
-- Android Studio / JDK 17 para compilar localmente, o GitHub Actions.
-- Android 10+ (minSdk 29).
-- Un archivo `.conf` WireGuard válido y un servidor/proveedor autorizado. La aplicación no incluye servidores ni proporciona datos ilimitados.
+- Android 10 o posterior (minSdk 29).
+- JDK 17 y Gradle 8.9 para compilación.
+- Un archivo de configuración WireGuard `.conf` y un servidor/proveedor autorizado.
 
-## Compilar
-Abre el repositorio en GitHub y ejecuta el workflow **Android CI** desde Actions. El workflow compila el proyecto y publica el APK como artifact si la compilación termina correctamente.
+## Funciones incluidas en esta alpha
+- Aplicación Android y pantalla inicial.
+- Selector para importar archivos de configuración `.conf`.
+- Validación estructural básica de las secciones `[Interface]` y `[Peer]`.
+- Guardado local cifrado con AES-GCM y una clave administrada por Android Keystore.
+- Pruebas unitarias para el validador.
+- Workflow de GitHub Actions para ejecutar pruebas y generar un APK debug.
 
 ## Estado
-- [x] Estructura Android y workflow CI.
-- [x] Pantalla inicial y selector de archivo `.conf`.
-- [ ] Integración completa con WireGuard Tunnel/GoBackend.
-- [ ] Pruebas de conexión, reconexión y ciclo de vida en Android 10.
-- [ ] Almacenamiento cifrado de configuraciones.
+La importación y el almacenamiento local están implementados como base experimental. **La conexión real todavía no está implementada**: `WireGuardController` es únicamente el contrato para integrar el backend oficial WireGuard Tunnel/GoBackend. La interfaz no simula una conexión.
 
-No uses esta versión para tráfico sensible. No contiene una VPN funcional hasta completar los puntos pendientes.
+Para compilar, abre **Actions → Android CI** y ejecuta el workflow. El APK debug aparecerá como artifact si el trabajo finaliza correctamente.
+
+No uses esta alpha para tráfico sensible. USWire no proporciona servidores, GB gratuitos ni ancho de banda ilimitado; eso depende del servidor o proveedor al que se conecte.
