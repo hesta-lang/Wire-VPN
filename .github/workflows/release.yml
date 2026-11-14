@@ -1,0 +1,96 @@
+name: Publish Android Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: uswire-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, verify and publish signed APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Validate release tag and signing secrets
+        env:
+          USWIRE_KEYSTORE_BASE64: ${{ secrets.USWIRE_KEYSTORE_BASE64 }}
+          USWIRE_STORE_PASSWORD: ${{ secrets.USWIRE_STORE_PASSWORD }}
+          USWIRE_KEY_ALIAS: ${{ secrets.USWIRE_KEY_ALIAS }}
+          USWIRE_KEY_PASSWORD: ${{ secrets.USWIRE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag must look like v1.2.3 or v1.2.3-alpha"
+            exit 1
+          fi
+          for name in USWIRE_KEYSTORE_BASE64 USWIRE_STORE_PASSWORD USWIRE_KEY_ALIAS USWIRE_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+          printf '%s' "$USWIRE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/uswire-release.jks"
+          if [[ ! -s "$RUNNER_TEMP/uswire-release.jks" ]]; then
+            echo "::error::Decoded keystore is empty"
+            exit 1
+          fi
+          keytool -list -keystore "$RUNNER_TEMP/uswire-release.jks" -storepass "$USWIRE_STORE_PASSWORD" -alias "$USWIRE_KEY_ALIAS" >/dev/null
+          echo "USWIRE_KEYSTORE_PATH=$RUNNER_TEMP/uswire-release.jks" >> "$GITHUB_ENV"
+          echo "USWIRE_VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "USWIRE_VERSION_CODE=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+
+      - name: Run tests and assemble signed release APK
+        env:
+          USWIRE_STORE_PASSWORD: ${{ secrets.USWIRE_STORE_PASSWORD }}
+          USWIRE_KEY_ALIAS: ${{ secrets.USWIRE_KEY_ALIAS }}
+          USWIRE_KEY_PASSWORD: ${{ secrets.USWIRE_KEY_PASSWORD }}
+        run: |
+          gradle --no-daemon testDebugUnitTest assembleRelease \
+            -PversionName="$USWIRE_VERSION_NAME" \
+            -PversionCode="$USWIRE_VERSION_CODE"
+
+      - name: Verify APK signature and generate verification files
+        id: verify
+        run: |
+          set -euo pipefail
+          APK_SOURCE="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK_SOURCE"
+          APK_NAME="USWire-$USWIRE_VERSION_NAME.apk"
+          cp "$APK_SOURCE" "$APK_NAME"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK_NAME" > "USWire-$USWIRE_VERSION_NAME-signature.txt"
+          sha256sum "$APK_NAME" > "$APK_NAME.sha256"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          echo "signature_file=USWire-$USWIRE_VERSION_NAME-signature.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: USWire ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            ${{ steps.verify.outputs.apk_name }}
+            ${{ steps.verify.outputs.apk_name }}.sha256
+            ${{ steps.verify.outputs.signature_file }}
