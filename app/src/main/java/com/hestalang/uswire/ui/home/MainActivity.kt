@@ -36,6 +36,20 @@ class MainActivity : Activity() {
     private lateinit var contentFrame: FrameLayout
     private lateinit var bottomNavigation: BottomNavigationView
     private var currentPage = PAGE_HOME
+    private var selectedPaletteId = "ocean"
+    private val palette: UiPalette
+        get() = UI_PALETTES.firstOrNull { it.id == selectedPaletteId } ?: UI_PALETTES.first()
+
+    private val COLOR_BACKGROUND get() = palette.background
+    private val COLOR_SURFACE get() = palette.surface
+    private val COLOR_CARD get() = palette.card
+    private val COLOR_STROKE get() = palette.stroke
+    private val COLOR_BUTTON_SECONDARY get() = palette.buttonSecondary
+    private val COLOR_TEXT get() = palette.text
+    private val COLOR_MUTED get() = palette.muted
+    private val COLOR_BLUE get() = palette.primary
+    private val COLOR_BLUE_SOFT get() = palette.primarySoft
+    private val COLOR_BLUE_LIGHT get() = palette.primaryLight
     private var vpnState = VpnState.DISCONNECTED
     private var vpnError: String? = null
     private var savedConfig: VpnConfig? = null
@@ -58,6 +72,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        selectedPaletteId = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .getString(KEY_PALETTE, "ocean") ?: "ocean"
         window.statusBarColor = COLOR_BACKGROUND
         window.navigationBarColor = COLOR_SURFACE
         window.decorView.systemUiVisibility = 0
@@ -376,6 +392,23 @@ class MainActivity : Activity() {
         addText(content, "Información de la aplicación y privacidad.", 14f, COLOR_MUTED)
         addSpace(content, 22)
 
+        val appearanceCard = card(COLOR_CARD)
+        val appearanceBody = verticalCardBody(appearanceCard)
+        addText(appearanceBody, "Apariencia", 19f, COLOR_TEXT, true)
+        addSpace(appearanceBody, 5)
+        addText(
+            appearanceBody,
+            "Personaliza el tono del fondo, las tarjetas y los botones. Tu elección se guarda en este dispositivo.",
+            13f,
+            COLOR_MUTED
+        )
+        addSpace(appearanceBody, 12)
+        appearanceBody.addView(actionButton("Cambiar colores", true) {
+            showPalettePicker()
+        }, matchWrap())
+        content.addView(appearanceCard, matchWrap())
+
+        addSpace(content, 14)
         val privacyCard = card(COLOR_CARD)
         val privacyBody = verticalCardBody(privacyCard)
         addText(privacyBody, "Privacidad y seguridad", 19f, COLOR_TEXT, true)
@@ -419,6 +452,25 @@ class MainActivity : Activity() {
             COLOR_MUTED
         )
         content.addView(warningCard, matchWrap())
+    }
+
+    private fun showPalettePicker() {
+        val labels = UI_PALETTES.map { it.name }.toTypedArray()
+        val selectedIndex = UI_PALETTES.indexOfFirst { it.id == selectedPaletteId }.coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Color de la interfaz")
+            .setSingleChoiceItems(labels, selectedIndex) { dialog, which ->
+                val selected = UI_PALETTES[which]
+                selectedPaletteId = selected.id
+                getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                    .edit()
+                    .putString(KEY_PALETTE, selected.id)
+                    .apply()
+                dialog.dismiss()
+                recreate()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     private fun showPrivacyDialog() {
@@ -837,16 +889,31 @@ class MainActivity : Activity() {
         private const val REQUEST_CONFIG = 4102
         private const val REQUEST_VPN_PERMISSION = 4103
 
-        private val COLOR_BACKGROUND = 0xFF0A1020.toInt()
-        private val COLOR_SURFACE = 0xFF111B2E.toInt()
-        private val COLOR_CARD = 0xFF162238.toInt()
-        private val COLOR_STROKE = 0xFF263650.toInt()
-        private val COLOR_BUTTON_SECONDARY = 0xFF263650.toInt()
-        private val COLOR_TEXT = 0xFFF4F7FC.toInt()
-        private val COLOR_MUTED = 0xFFA1AEC2.toInt()
-        private val COLOR_BLUE = 0xFF367EF5.toInt()
-        private val COLOR_BLUE_SOFT = 0xFF1B3155.toInt()
-        private val COLOR_BLUE_LIGHT = 0xFF80B4FF.toInt()
+        private const val PREFS_NAME = "uswire_preferences"
+        private const val KEY_PALETTE = "ui_palette"
+
+        private data class UiPalette(
+            val id: String,
+            val name: String,
+            val background: Int,
+            val surface: Int,
+            val card: Int,
+            val stroke: Int,
+            val buttonSecondary: Int,
+            val text: Int,
+            val muted: Int,
+            val primary: Int,
+            val primarySoft: Int,
+            val primaryLight: Int
+        )
+
+        private val UI_PALETTES = listOf(
+            UiPalette("ocean", "Azul océano", 0xFF0A1020.toInt(), 0xFF111B2E.toInt(), 0xFF162238.toInt(), 0xFF263650.toInt(), 0xFF263650.toInt(), 0xFFF4F7FC.toInt(), 0xFFA1AEC2.toInt(), 0xFF367EF5.toInt(), 0xFF1B3155.toInt(), 0xFF80B4FF.toInt()),
+            UiPalette("violet", "Violeta", 0xFF100D1C.toInt(), 0xFF1A1530.toInt(), 0xFF241D3D.toInt(), 0xFF3B2E60.toInt(), 0xFF3B2E60.toInt(), 0xFFF7F3FF.toInt(), 0xFFB7AFCB.toInt(), 0xFF7955D9.toInt(), 0xFF30224F.toInt(), 0xFFC0A9FF.toInt()),
+            UiPalette("forest", "Verde bosque", 0xFF091711.toInt(), 0xFF10251B.toInt(), 0xFF183326.toInt(), 0xFF28513A.toInt(), 0xFF28513A.toInt(), 0xFFF1FAF3.toInt(), 0xFFA8BFAE.toInt(), 0xFF278653.toInt(), 0xFF1B422E.toInt(), 0xFF8BE0AC.toInt()),
+            UiPalette("rose", "Rojo vino", 0xFF1A0C12.toInt(), 0xFF29131D.toInt(), 0xFF371B29.toInt(), 0xFF593044.toInt(), 0xFF593044.toInt(), 0xFFFFF3F6.toInt(), 0xFFD0AEBB.toInt(), 0xFFB83D68.toInt(), 0xFF512238.toInt(), 0xFFFFA2BE.toInt())
+        )
+
         private val COLOR_GREEN = 0xFF42D6A0.toInt()
         private val COLOR_AMBER = 0xFFFFC36B.toInt()
         private val COLOR_RED = 0xFFFF7777.toInt()
