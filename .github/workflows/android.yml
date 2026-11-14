@@ -38,7 +38,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: USWire-0.3.0-alpha-debug
+          name: USWire-0.3.1-alpha-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
@@ -69,6 +69,6 @@ jobs:
         if: env.USWIRE_RELEASE_SIGNING_READY == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: USWire-0.3.0-alpha-release-signed
+          name: USWire-0.3.1-alpha-release-signed
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
