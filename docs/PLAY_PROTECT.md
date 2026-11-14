@@ -23,7 +23,7 @@ La distribución independiente no garantiza que Play Protect retire el aviso de 
 
 El workflow **Publish Android Release** requiere estos GitHub Actions Repository secrets:
 
-- `USWIRE_KEYSTORE_BASE64`: keystore JKS/PKCS12 codificado en Base64.
+- `USWIRE_KEYSTORE_BASE64`: keystore JKS codificado en Base64.
 - `USWIRE_STORE_PASSWORD`: contraseña del keystore.
 - `USWIRE_KEY_ALIAS`: alias de la clave de firma.
 - `USWIRE_KEY_PASSWORD`: contraseña de la clave.
