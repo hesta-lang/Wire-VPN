@@ -1,30 +1,35 @@
-# USWire Android — 0.2.0-alpha
+# USWire Android — 0.3.0-alpha
 
-Cliente Android experimental para importar perfiles WireGuard y establecer túneles VPN mediante el motor oficial WireGuard para Android.
+Cliente Android independiente para importar perfiles WireGuard y controlar túneles VPN mediante el motor oficial WireGuard para Android.
 
-## Requisitos
+## Interfaz 0.3.0-alpha
+- Panel principal oscuro con estado de conexión y acción principal.
+- Navegación inferior entre Inicio, Perfiles y Ajustes.
+- Biblioteca de perfil importado, reemplazo y eliminación.
+- Resumen de privacidad integrado en la aplicación.
+- Icono de aplicación propio.
+
+## Funciones VPN
+- Importación de perfiles `.conf` desde el selector de documentos de Android.
+- Validación sintáctica mediante el parser oficial de WireGuard.
+- Almacenamiento local cifrado con AES-GCM y Android Keystore.
+- Backend oficial WireGuard Tunnel/GoBackend.
+- Solicitud de permiso VPN del sistema Android.
+- Conectar y desconectar el túnel.
+
+## Compatibilidad
 - Android 10 o posterior (minSdk 29).
 - JDK 17 y Gradle 8.9 para compilación.
-- Un archivo de configuración WireGuard .conf y un servidor/proveedor autorizado.
 
-## Funciones de esta alpha
-- Selector de archivos Android para importar perfiles .conf.
-- Validación sintáctica con el parser oficial de WireGuard.
-- Almacenamiento local cifrado con AES-GCM y una clave administrada por Android Keystore.
-- Motor oficial WireGuard Tunnel/GoBackend integrado como dependencia de Maven Central.
-- Solicitud del permiso VPN del sistema Android.
-- Controles para conectar y desconectar desde USWire.
-- Workflow de GitHub Actions para ejecutar pruebas y generar un APK debug.
+## Privacidad y seguridad
+- Consulta [la política de privacidad](docs/PRIVACY.md).
+- Consulta [la guía de Play Protect y distribución](docs/PLAY_PROTECT.md).
+- No subas archivos `.conf`: contienen claves privadas.
+- USWire no opera servidores ni proporciona ancho de banda. El proveedor del perfil controla el endpoint y su política de privacidad.
+- No desactives Play Protect para instalar la aplicación.
 
-## Estado y limitaciones
-Esta versión incorpora el backend real, pero todavía requiere pruebas en dispositivos Android físicos y con perfiles de proveedores autorizados. La compilación del APK no demuestra por sí sola que un servidor concreto acepte la conexión.
+## Compilación
+Abre **Actions → Android CI**. El workflow ejecuta pruebas y genera un APK debug para pruebas. Cuando configures los secretos de firma, también genera un APK release firmado.
 
-USWire es un cliente: no proporciona servidores, cuentas, GB gratuitos ni ancho de banda. Los límites y ubicaciones dependen del proveedor del perfil .conf.
-
-## Seguridad
-- No subas perfiles .conf a GitHub ni los compartas públicamente: contienen claves privadas.
-- Los perfiles importados se guardan cifrados en el almacenamiento privado de la aplicación.
-- No uses esta alpha para tráfico sensible hasta completar las pruebas de conexión, reconexión, DNS e IPv6.
-
-## Compilar
-Abre **Actions → Android CI** y ejecuta el workflow. El APK debug aparecerá como artifact si el trabajo finaliza correctamente.
+### Firma release opcional
+Configura los secretos del repositorio indicados en [docs/PLAY_PROTECT.md](docs/PLAY_PROTECT.md). Conserva siempre la misma clave para las actualizaciones. No descargues ni compartas el keystore desde el chat.
