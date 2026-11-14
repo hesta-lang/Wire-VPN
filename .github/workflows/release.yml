@@ -81,67 +81,40 @@ jobs:
           test -s "$APK_SOURCE"
           APK_NAME="USWire-$USWIRE_VERSION_NAME.apk"
           cp "$APK_SOURCE" "$APK_NAME"
+
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           "$BUILD_TOOLS/aapt" dump badging "$APK_NAME" > "$RUNNER_TEMP/uswire-apk-badging.txt"
           PACKAGE_NAME="$(sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" "$RUNNER_TEMP/uswire-apk-badging.txt" | head -n 1)"
           APK_VERSION_CODE="$(sed -n "s/^package:.*versionCode='\\([^']*\\)'.*/\\1/p" "$RUNNER_TEMP/uswire-apk-badging.txt" | head -n 1)"
+
           if [[ "$PACKAGE_NAME" != "com.hestalang.uswire" ]]; then
             echo "::error::Unexpected application ID: $PACKAGE_NAME"
             exit 1
           fi
           if [[ "$APK_VERSION_CODE" != "$USWIRE_VERSION_CODE" ]]; then
-            echo "::error::APK versionCode does not match the monotonically increasing release version."
+            echo "::error::APK versionCode does not match the release version."
             exit 1
           fi
-          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK_NAME" > "USWire-$USWIRE_VERSION_NAME-signature.txt"
 
-          # Compare certificates using the actual APKs, not a text report whose
-          # formatting can differ between older releases.
+          CURRENT_REPORT="USWire-$USWIRE_VERSION_NAME-signature.txt"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK_NAME" > "$CURRENT_REPORT"
+          CURRENT_SIGNATURE="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "$CURRENT_REPORT" | head -n 1 | tr '[:upper:]' '[:lower:]')"
+          if [[ -z "$CURRENT_SIGNATURE" ]]; then
+            echo "::error::Could not read the current APK signing certificate."
+            cat "$CURRENT_REPORT"
+            exit 1
+          fi
+
+          # Find the newest previous release that actually contains a USWire APK.
           PREVIOUS_TAG=""
           while IFS= read -r candidate; do
             [[ -z "$candidate" || "$candidate" == "$GITHUB_REF_NAME" ]] && continue
-            if gh release view "$candidate" --json assets --jq '.assets[].name' | grep -Eq '^USWire-.*\.apk
-            PREVIOUS_APK="$(find "$PREVIOUS_DIR" -maxdepth 1 -type f -name 'USWire-*.apk' -print -quit)"
-            if [[ -z "$PREVIOUS_APK" || ! -s "$PREVIOUS_APK" ]]; then
-              echo "::error::Could not download the APK from previous release $PREVIOUS_TAG."
-              exit 1
-            fi
-            "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$PREVIOUS_APK" > "$RUNNER_TEMP/uswire-previous-signature.txt"
-            CURRENT_SIGNATURE="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "USWire-$USWIRE_VERSION_NAME-signature.txt" | head -n 1 | tr '[:upper:]' '[:lower:]')"
-            PREVIOUS_SIGNATURE="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "$RUNNER_TEMP/uswire-previous-signature.txt" | head -n 1 | tr '[:upper:]' '[:lower:]')"
-            if [[ -z "$PREVIOUS_SIGNATURE" || -z "$CURRENT_SIGNATURE" ]]; then
-              echo "::error::Could not extract the signing certificate SHA-256 digest from the current or previous APK."
-              echo "Current signature report:"
-              cat "USWire-$USWIRE_VERSION_NAME-signature.txt"
-              echo "Previous signature report:"
-              cat "$RUNNER_TEMP/uswire-previous-signature.txt"
-              exit 1
-            fi
-            if [[ "$PREVIOUS_SIGNATURE" != "$CURRENT_SIGNATURE" ]]; then
-              echo "::error::Signing certificate changed. This APK cannot update the previous USWire installation."
-              exit 1
-            fi
-          fi
-
-          sha256sum "$APK_NAME" > "$APK_NAME.sha256"
-          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
-          echo "signature_file=USWire-$USWIRE_VERSION_NAME-signature.txt" >> "$GITHUB_OUTPUT"
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: USWire ${{ github.ref_name }}
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          files: |
-            ${{ steps.verify.outputs.apk_name }}
-            ${{ steps.verify.outputs.apk_name }}.sha256
-            ${{ steps.verify.outputs.signature_file }}
-; then
+            if gh release view "$candidate" --json assets --jq '.assets[].name' 2>/dev/null | grep -Eq '^USWire-.*\.apk$'; then
               PREVIOUS_TAG="$candidate"
               break
             fi
           done < <(gh release list --limit 50 --json tagName --jq '.[].tagName')
+
           if [[ -n "$PREVIOUS_TAG" ]]; then
             PREVIOUS_DIR="$RUNNER_TEMP/uswire-previous-release"
             mkdir -p "$PREVIOUS_DIR"
@@ -151,14 +124,12 @@ jobs:
               echo "::error::Could not download the APK from previous release $PREVIOUS_TAG."
               exit 1
             fi
+
             "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$PREVIOUS_APK" > "$RUNNER_TEMP/uswire-previous-signature.txt"
-            CURRENT_SIGNATURE="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "USWire-$USWIRE_VERSION_NAME-signature.txt" | head -n 1 | tr '[:upper:]' '[:lower:]')"
             PREVIOUS_SIGNATURE="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "$RUNNER_TEMP/uswire-previous-signature.txt" | head -n 1 | tr '[:upper:]' '[:lower:]')"
-            if [[ -z "$PREVIOUS_SIGNATURE" || -z "$CURRENT_SIGNATURE" ]]; then
-              echo "::error::Could not extract the signing certificate SHA-256 digest from the current or previous APK."
-              echo "Current signature report:"
-              cat "USWire-$USWIRE_VERSION_NAME-signature.txt"
-              echo "Previous signature report:"
+
+            if [[ -z "$PREVIOUS_SIGNATURE" ]]; then
+              echo "::error::Could not read the previous APK signing certificate."
               cat "$RUNNER_TEMP/uswire-previous-signature.txt"
               exit 1
             fi
@@ -166,11 +137,13 @@ jobs:
               echo "::error::Signing certificate changed. This APK cannot update the previous USWire installation."
               exit 1
             fi
+          else
+            echo "No previous release with an APK was found; skipping certificate comparison."
           fi
 
           sha256sum "$APK_NAME" > "$APK_NAME.sha256"
           echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
-          echo "signature_file=USWire-$USWIRE_VERSION_NAME-signature.txt" >> "$GITHUB_OUTPUT"
+          echo "signature_file=$CURRENT_REPORT" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
