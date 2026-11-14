@@ -80,6 +80,17 @@ jobs:
           APK_NAME="USWire-$USWIRE_VERSION_NAME.apk"
           cp "$APK_SOURCE" "$APK_NAME"
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$BUILD_TOOLS/aapt" dump badging "$APK_NAME" > "$RUNNER_TEMP/uswire-apk-badging.txt"
+          PACKAGE_NAME="$(sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" "$RUNNER_TEMP/uswire-apk-badging.txt" | head -n 1)"
+          APK_VERSION_CODE="$(sed -n "s/^package:.*versionCode='\\([^']*\\)'.*/\\1/p" "$RUNNER_TEMP/uswire-apk-badging.txt" | head -n 1)"
+          if [[ "$PACKAGE_NAME" != "com.hestalang.uswire" ]]; then
+            echo "::error::Unexpected application ID: $PACKAGE_NAME"
+            exit 1
+          fi
+          if [[ "$APK_VERSION_CODE" != "$USWIRE_VERSION_CODE" ]]; then
+            echo "::error::APK versionCode does not match the monotonically increasing release version."
+            exit 1
+          fi
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK_NAME" > "USWire-$USWIRE_VERSION_NAME-signature.txt"
           sha256sum "$APK_NAME" > "$APK_NAME.sha256"
           echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
