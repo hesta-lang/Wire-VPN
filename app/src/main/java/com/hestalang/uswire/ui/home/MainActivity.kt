@@ -53,6 +53,7 @@ class MainActivity : Activity() {
     private var vpnState = VpnState.DISCONNECTED
     private var vpnError: String? = null
     private var savedConfig: VpnConfig? = null
+    private var savedProfiles: List<VpnConfig> = emptyList()
     private var profileLoaded = false
     private var profileLoadInProgress = false
     private var importProgressDialog: AlertDialog? = null
@@ -324,7 +325,7 @@ class MainActivity : Activity() {
         addSpace(hintBody, 4)
         addText(
             hintBody,
-            "Abre Perfiles para importar o reemplazar tu archivo .conf.",
+            "Importa varios archivos .conf y selecciona qué servidor quieres usar.",
             13f,
             COLOR_MUTED
         )
@@ -336,50 +337,117 @@ class MainActivity : Activity() {
     }
 
     private fun renderProfiles(content: LinearLayout) {
-        val config = savedConfig
+        val profiles = savedProfiles.sortedByDescending { it.importedAtMillis }
         addText(content, "BIBLIOTECA", 11f, COLOR_BLUE_LIGHT, true)
         addText(content, "Tus perfiles", 30f, COLOR_TEXT, true)
-        addText(content, "Importa y administra tu configuración WireGuard.", 14f, COLOR_MUTED)
-        addSpace(content, 22)
+        addText(content, "Guarda varios servidores WireGuard y elige cuál conectar.", 14f, COLOR_MUTED)
+        addSpace(content, 18)
 
-        val profileCard = card(COLOR_CARD)
-        val body = verticalCardBody(profileCard)
-        addText(body, "PERFIL ACTUAL", 10f, COLOR_MUTED, true)
-        addSpace(body, 10)
-        addText(body, config?.displayName ?: "No hay perfiles", 20f, COLOR_TEXT, true)
-        addSpace(body, 6)
-        addText(
-            body,
-            if (config != null) {
-                "Guardado localmente y cifrado con Android Keystore."
-            } else {
-                "Importa un archivo .conf de tu proveedor WireGuard para comenzar."
-            },
-            13f,
-            COLOR_MUTED
-        )
-        addSpace(body, 18)
-        body.addView(actionButton(
-            if (config == null) "Importar archivo .conf" else "Reemplazar perfil",
-            true
-        ) { openConfigPicker() }, matchWrap())
-
-        if (config != null) {
-            addSpace(body, 9)
-            body.addView(actionButton("Eliminar perfil", false) {
-                confirmDeleteProfile()
-            }, matchWrap())
-        }
-        content.addView(profileCard, matchWrap())
+        val addCard = card(COLOR_CARD)
+        val addBody = verticalCardBody(addCard)
+        addText(addBody, "AÑADIR SERVIDOR", 10f, COLOR_MUTED, true)
+        addSpace(addBody, 8)
+        addText(addBody, "Importa otra configuración sin reemplazar las que ya guardaste.", 13f, COLOR_MUTED)
+        addSpace(addBody, 14)
+        addBody.addView(actionButton("Agregar perfil .conf", true) {
+            openConfigPicker()
+        }, matchWrap())
+        content.addView(addCard, matchWrap())
 
         addSpace(content, 18)
+        addText(content, "PERFILES GUARDADOS  ·  ${profiles.size}", 11f, COLOR_BLUE_LIGHT, true)
+        addSpace(content, 9)
+
+        if (profiles.isEmpty()) {
+            val emptyCard = card(COLOR_SURFACE)
+            val emptyBody = verticalCardBody(emptyCard)
+            addText(emptyBody, "Todavía no hay perfiles", 18f, COLOR_TEXT, true)
+            addSpace(emptyBody, 5)
+            addText(emptyBody, "Importa un archivo .conf para añadir tu primer servidor.", 13f, COLOR_MUTED)
+            content.addView(emptyCard, matchWrap())
+        } else {
+            profiles.forEach { profile ->
+                val isActive = savedConfig?.id == profile.id
+                val profileCard = card(COLOR_CARD)
+                val body = verticalCardBody(profileCard)
+
+                val heading = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                val name = TextView(this).apply {
+                    text = profile.displayName
+                    textSize = 18f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(COLOR_TEXT)
+                    maxLines = 2
+                }
+                heading.addView(name, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                heading.addView(
+                    if (isActive) {
+                        smallPill("ACTIVO", COLOR_BLUE_SOFT, COLOR_BLUE_LIGHT)
+                    } else {
+                        smallPill("GUARDADO", COLOR_SURFACE, COLOR_MUTED)
+                    }
+                )
+                body.addView(heading)
+
+                addSpace(body, 7)
+                addText(
+                    body,
+                    "Importado · " + android.text.format.DateFormat.format("dd/MM/yyyy", profile.importedAtMillis),
+                    11f,
+                    COLOR_MUTED
+                )
+                addSpace(body, 13)
+
+                if (isActive) {
+                    addText(body, "Este es el perfil que se utilizará al pulsar Conectar.", 12f, COLOR_BLUE_LIGHT)
+                } else {
+                    val selectButton = actionButton("Usar este perfil", true) {
+                        selectProfile(profile)
+                    }
+                    selectButton.isEnabled = vpnState == VpnState.DISCONNECTED || vpnState == VpnState.ERROR
+                    body.addView(selectButton, matchWrap())
+                    addSpace(body, 8)
+                }
+
+                val deleteButton = actionButton("Eliminar perfil", false) {
+                    confirmDeleteProfile(profile)
+                }
+                deleteButton.isEnabled = vpnState == VpnState.DISCONNECTED || vpnState == VpnState.ERROR
+                body.addView(deleteButton, matchWrap())
+
+                content.addView(profileCard, matchWrap())
+                addSpace(content, 12)
+            }
+        }
+
+        if (vpnState == VpnState.CONNECTED ||
+            vpnState == VpnState.CONNECTING ||
+            vpnState == VpnState.DISCONNECTING
+        ) {
+            val warning = card(COLOR_SURFACE)
+            val warningBody = verticalCardBody(warning)
+            addText(warningBody, "Conexión en curso", 15f, COLOR_TEXT, true)
+            addSpace(warningBody, 4)
+            addText(
+                warningBody,
+                "Desconecta el túnel antes de cambiar o eliminar perfiles.",
+                12f,
+                COLOR_MUTED
+            )
+            content.addView(warning, matchWrap())
+            addSpace(content, 12)
+        }
+
         val note = card(COLOR_SURFACE)
         val noteBody = verticalCardBody(note)
-        addText(noteBody, "Tu configuración es privada", 16f, COLOR_TEXT, true)
+        addText(noteBody, "Tus configuraciones están protegidas", 16f, COLOR_TEXT, true)
         addSpace(noteBody, 5)
         addText(
             noteBody,
-            "El archivo .conf contiene credenciales y claves privadas. USWire lo guarda cifrado en el almacenamiento privado de la aplicación. No lo publiques ni lo compartas.",
+            "Los archivos .conf contienen claves privadas. USWire guarda la biblioteca cifrada con Android Keystore dentro del almacenamiento privado de la aplicación.",
             13f,
             COLOR_MUTED
         )
@@ -487,23 +555,60 @@ class MainActivity : Activity() {
             .show()
     }
 
-    private fun confirmDeleteProfile() {
+    private fun selectProfile(profile: VpnConfig) {
+        if (vpnState != VpnState.DISCONNECTED && vpnState != VpnState.ERROR) {
+            Toast.makeText(this, "Desconecta la VPN antes de cambiar de perfil.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        ioExecutor.execute {
+            val result = runCatching {
+                configRepository.setActive(profile.id)
+                configRepository.load()
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                result.onSuccess { active ->
+                    savedConfig = active
+                    Toast.makeText(this, "Perfil activo: ${profile.displayName}", Toast.LENGTH_SHORT).show()
+                }.onFailure { error ->
+                    Toast.makeText(
+                        this,
+                        error.localizedMessage ?: "No se pudo seleccionar el perfil.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                renderPage(currentPage)
+            }
+        }
+    }
+
+    private fun confirmDeleteProfile(profile: VpnConfig) {
+        if (vpnState != VpnState.DISCONNECTED && vpnState != VpnState.ERROR) {
+            Toast.makeText(this, "Desconecta la VPN antes de eliminar perfiles.", Toast.LENGTH_LONG).show()
+            return
+        }
+
         AlertDialog.Builder(this)
             .setTitle("Eliminar perfil")
-            .setMessage("Se borrará la configuración guardada en este dispositivo. El túnel activo no se detendrá automáticamente.")
+            .setMessage("Se eliminará únicamente «${profile.displayName}». Los demás perfiles y los ajustes se conservarán.")
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Eliminar") { _, _ ->
                 ioExecutor.execute {
-                    val result = runCatching { configRepository.clear() }
+                    val result = runCatching {
+                        configRepository.delete(profile.id)
+                        configRepository.loadAll() to configRepository.load()
+                    }
                     runOnUiThread {
                         if (isFinishing || isDestroyed) return@runOnUiThread
-                        if (result.isSuccess) {
-                            savedConfig = null
+                        result.onSuccess { snapshot ->
+                            savedProfiles = snapshot.first
+                            savedConfig = snapshot.second
                             Toast.makeText(this, "Perfil eliminado", Toast.LENGTH_SHORT).show()
-                        } else {
+                        }.onFailure { error ->
                             Toast.makeText(
                                 this,
-                                "No se pudo eliminar el perfil guardado.",
+                                error.localizedMessage ?: "No se pudo eliminar el perfil.",
                                 Toast.LENGTH_LONG
                             ).show()
                         }
@@ -668,19 +773,24 @@ class MainActivity : Activity() {
         }
         profileLoadInProgress = true
         ioExecutor.execute {
-            val result = runCatching { configRepository.load() }
+            val result = runCatching {
+                configRepository.loadAll() to configRepository.load()
+            }
             runOnUiThread {
                 profileLoadInProgress = false
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                result.onSuccess { savedConfig = it }
-                    .onFailure {
-                        savedConfig = null
-                        Toast.makeText(
-                            this,
-                            "No se pudo leer el perfil guardado.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
+                result.onSuccess { snapshot ->
+                    savedProfiles = snapshot.first
+                    savedConfig = snapshot.second
+                }.onFailure {
+                    savedProfiles = emptyList()
+                    savedConfig = null
+                    Toast.makeText(
+                        this,
+                        "No se pudo leer la biblioteca de perfiles guardada.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
                 profileLoaded = true
                 if (onLoaded == null) renderPage(currentPage) else onLoaded(savedConfig)
             }
@@ -767,10 +877,13 @@ class MainActivity : Activity() {
         showImportProgress()
 
         ioExecutor.execute {
-            val result: Result<VpnConfig> = try {
+            val result: Result<Triple<VpnConfig, List<VpnConfig>, VpnConfig?>> = try {
                 val displayName = queryDisplayName(uri)
                 val contents = readConfigContents(uri)
-                importConfig.execute(displayName, contents)
+                val imported = importConfig.execute(displayName, contents).getOrThrow()
+                val profiles = configRepository.loadAll()
+                val active = configRepository.load()
+                Result.success(Triple(imported, profiles, active))
             } catch (error: Exception) {
                 Result.failure(error)
             }
@@ -780,12 +893,13 @@ class MainActivity : Activity() {
                 importProgressDialog?.dismiss()
                 importProgressDialog = null
 
-                result.onSuccess { config ->
-                    savedConfig = config
+                result.onSuccess { snapshot ->
+                    savedProfiles = snapshot.second
+                    savedConfig = snapshot.third ?: snapshot.first
                     profileLoaded = true
                     Toast.makeText(
                         this,
-                        "Perfil importado y guardado cifrado.",
+                        "Perfil añadido. Los perfiles anteriores se conservaron.",
                         Toast.LENGTH_LONG
                     ).show()
                     renderPage(PAGE_PROFILES)
