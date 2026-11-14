@@ -650,7 +650,7 @@ class MainActivity : Activity() {
         private const val REQUEST_CONFIG = 4102
         private const val REQUEST_VPN_PERMISSION = 4103
 
-        private const val COLOR_BACKGROUND = 0xFF0A1020.toInt()
+        private val COLOR_BACKGROUND = 0xFF0A1020.toInt()
         private const val COLOR_SURFACE = 0xFF111B2E.toInt()
         private const val COLOR_CARD = 0xFF162238.toInt()
         private const val COLOR_STROKE = 0xFF263650.toInt()
