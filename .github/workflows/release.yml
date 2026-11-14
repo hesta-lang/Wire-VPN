@@ -39,8 +39,13 @@ jobs:
           USWIRE_KEY_PASSWORD: ${{ secrets.USWIRE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          VERSION_NAME="${GITHUB_REF_NAME#v}"
-          if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+          TAG_VERSION_NAME="${GITHUB_REF_NAME#v}"
+          VERSION_NAME="$TAG_VERSION_NAME"
+          # The 0.4.4 code line is presented to users as 0.4.0-alpha.
+          if [[ "$GITHUB_REF_NAME" == "v0.4.4-alpha" ]]; then
+            VERSION_NAME="0.4.0-alpha"
+          fi
+          if [[ ! "$TAG_VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::Tag must look like v1.2.3 or v1.2.3-alpha"
             exit 1
           fi
@@ -144,11 +149,12 @@ jobs:
           sha256sum "$APK_NAME" > "$APK_NAME.sha256"
           echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
           echo "signature_file=$CURRENT_REPORT" >> "$GITHUB_OUTPUT"
+          echo "release_name=USWire $USWIRE_VERSION_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: USWire ${{ github.ref_name }}
+          name: ${{ steps.verify.outputs.release_name }}
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
