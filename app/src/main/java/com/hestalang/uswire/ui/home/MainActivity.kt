@@ -129,9 +129,14 @@ class MainActivity : Activity() {
             menu.add(Menu.NONE, PAGE_SETTINGS, Menu.NONE, "Ajustes")
                 .setIcon(android.R.drawable.ic_menu_preferences)
             setOnItemSelectedListener { item ->
-                renderPage(item.itemId)
+                if (item.itemId != currentPage) {
+                    renderPage(item.itemId)
+                }
                 true
             }
+
+            // Mark the initial destination without dispatching a navigation event.
+            menu.findItem(PAGE_HOME).isChecked = true
         }
         shell.addView(
             bottomNavigation,
@@ -174,9 +179,6 @@ class MainActivity : Activity() {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         )
-        if (::bottomNavigation.isInitialized && bottomNavigation.selectedItemId != page) {
-            bottomNavigation.selectedItemId = page
-        }
     }
 
     private fun renderHome(content: LinearLayout) {
