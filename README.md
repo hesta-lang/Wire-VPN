@@ -1,8 +1,8 @@
-# USWire Android — 0.3.0-alpha
+# USWire Android — 0.3.1-alpha
 
 Cliente Android independiente para importar perfiles WireGuard y controlar túneles VPN mediante el motor oficial WireGuard para Android.
 
-## Interfaz 0.3.0-alpha
+## Interfaz 0.3.1-alpha
 - Panel principal oscuro con estado de conexión y acción principal.
 - Navegación inferior entre Inicio, Perfiles y Ajustes.
 - Biblioteca de perfil importado, reemplazo y eliminación.
@@ -10,7 +10,7 @@ Cliente Android independiente para importar perfiles WireGuard y controlar túne
 - Icono de aplicación propio.
 
 ## Funciones VPN
-- Importación de perfiles `.conf` desde el selector de documentos de Android.
+- Importación de perfiles `.conf` desde el selector de documentos de Android, con lectura, validación y cifrado en segundo plano.\n- Filtro de tipos MIME habituales y compatibilidad alternativa con selectores de archivos Android.\n- Límite de tamaño de 1 MB para evitar cargar archivos ajenos o anormalmente grandes en memoria.
 - Validación sintáctica mediante el parser oficial de WireGuard.
 - Almacenamiento local cifrado con AES-GCM y Android Keystore.
 - Backend oficial WireGuard Tunnel/GoBackend.
