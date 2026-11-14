@@ -32,12 +32,36 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Run unit tests and assemble APK
+      - name: Run unit tests and assemble debug APK
         run: gradle --no-daemon testDebugUnitTest assembleDebug
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: USWire-0.2.0-alpha-debug
+          name: USWire-0.3.0-alpha-debug
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Prepare release signing key
+        if: ${{ secrets.USWIRE_KEYSTORE_BASE64 != '' && secrets.USWIRE_STORE_PASSWORD != '' && secrets.USWIRE_KEY_ALIAS != '' && secrets.USWIRE_KEY_PASSWORD != '' }}
+        env:
+          USWIRE_KEYSTORE_BASE64: ${{ secrets.USWIRE_KEYSTORE_BASE64 }}
+        run: |
+          echo "$USWIRE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/uswire-release.jks"
+          echo "USWIRE_KEYSTORE_PATH=$RUNNER_TEMP/uswire-release.jks" >> "$GITHUB_ENV"
+
+      - name: Assemble signed release APK
+        if: ${{ secrets.USWIRE_KEYSTORE_BASE64 != '' && secrets.USWIRE_STORE_PASSWORD != '' && secrets.USWIRE_KEY_ALIAS != '' && secrets.USWIRE_KEY_PASSWORD != '' }}
+        env:
+          USWIRE_STORE_PASSWORD: ${{ secrets.USWIRE_STORE_PASSWORD }}
+          USWIRE_KEY_ALIAS: ${{ secrets.USWIRE_KEY_ALIAS }}
+          USWIRE_KEY_PASSWORD: ${{ secrets.USWIRE_KEY_PASSWORD }}
+        run: gradle --no-daemon assembleRelease
+
+      - name: Upload signed release APK
+        if: ${{ secrets.USWIRE_KEYSTORE_BASE64 != '' && secrets.USWIRE_STORE_PASSWORD != '' && secrets.USWIRE_KEY_ALIAS != '' && secrets.USWIRE_KEY_PASSWORD != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: USWire-0.3.0-alpha-release-signed
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
