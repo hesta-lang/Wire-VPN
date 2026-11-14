@@ -567,37 +567,33 @@ class MainActivity : Activity() {
     private fun openConfigPicker() {
         if (importProgressDialog?.isShowing == true) return
 
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+        // Android 10 / algunos selectores OEM no manejan de forma uniforme
+        // EXTRA_MIME_TYPES. Usamos el selector genérico y filtramos el
+        // contenido después de que el usuario elija el archivo.
+        val getContent = Intent(Intent.ACTION_GET_CONTENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
-            putExtra(
-                Intent.EXTRA_MIME_TYPES,
-                arrayOf(
-                    "text/plain",
-                    "application/octet-stream",
-                    "application/x-wireguard-config"
-                )
-            )
             putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
-            putExtra(Intent.EXTRA_LOCAL_ONLY, true)
         }
 
         try {
-            startActivityForResult(intent, REQUEST_CONFIG)
+            startActivityForResult(
+                Intent.createChooser(getContent, "Seleccionar archivo .conf"),
+                REQUEST_CONFIG
+            )
         } catch (_: ActivityNotFoundException) {
-            val fallback = Intent(Intent.ACTION_GET_CONTENT).apply {
+            // Segundo intento: Storage Access Framework.
+            val openDocument = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "*/*"
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
             }
             try {
-                startActivityForResult(
-                    Intent.createChooser(fallback, "Seleccionar perfil WireGuard"),
-                    REQUEST_CONFIG
-                )
+                startActivityForResult(openDocument, REQUEST_CONFIG)
             } catch (error: Exception) {
                 Toast.makeText(
                     this,
-                    "No se encontró un selector de archivos compatible.",
+                    "Android no pudo abrir un selector de archivos: ${error.localizedMessage ?: "sin proveedor compatible"}",
                     Toast.LENGTH_LONG
                 ).show()
             }
