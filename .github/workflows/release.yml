@@ -58,7 +58,8 @@ jobs:
           keytool -list -keystore "$RUNNER_TEMP/uswire-release.jks" -storepass "$USWIRE_STORE_PASSWORD" -alias "$USWIRE_KEY_ALIAS" >/dev/null
           echo "USWIRE_KEYSTORE_PATH=$RUNNER_TEMP/uswire-release.jks" >> "$GITHUB_ENV"
           echo "USWIRE_VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
-          echo "USWIRE_VERSION_CODE=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+          VERSION_CODE=$((GITHUB_RUN_NUMBER + 4))
+          echo "USWIRE_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
 
       - name: Run tests and assemble signed release APK
         env:
