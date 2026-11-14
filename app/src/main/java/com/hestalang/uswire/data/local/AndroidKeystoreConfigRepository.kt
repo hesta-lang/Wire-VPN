@@ -158,13 +158,13 @@ class AndroidKeystoreConfigRepository(context: Context) : ConfigRepository {
         val atomicFile = AtomicFile(profilesFile)
         var output: FileOutputStream? = null
         try {
-            output = atomicFile.startWrite()
-            output.write(payload.toByteArray(Charsets.UTF_8))
-            atomicFile.finishWrite(output)
+            val stream = atomicFile.startWrite()
+            output = stream
+            stream.write(payload.toByteArray(Charsets.UTF_8))
+            atomicFile.finishWrite(stream)
+            output = null
         } catch (error: Exception) {
-            if (output != null) {
-                atomicFile.failWrite(output)
-            }
+            output?.let { atomicFile.failWrite(it) }
             throw error
         }
     }
