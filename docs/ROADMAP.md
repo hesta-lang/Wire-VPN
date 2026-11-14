@@ -15,7 +15,7 @@
 - [ ] Confirm CI build and unit tests.
 - [ ] Test on a physical Android 10+ device with a provider-issued profile.
 
-## 0.3.0-alpha — connection management
+## 0.3.0-alpha — interface refresh\n- [x] Add launcher-style navigation and profile management screens.\n- [x] Add privacy information and app identity assets.\n\n## 0.3.1-alpha — import stability\n- [x] Move file reading, parsing, encryption, and saved-profile loading off the Android main thread.\n- [x] Improve SAF MIME filters and add a fallback picker action.\n- [x] Bound imported configuration size and show import progress.\n\n## Next — connection management
 - Multiple saved profiles.
 - Connection diagnostics without exposing keys.
 - Reconnect behavior and network change handling.
