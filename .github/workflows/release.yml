@@ -95,17 +95,27 @@ jobs:
           fi
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK_NAME" > "USWire-$USWIRE_VERSION_NAME-signature.txt"
 
-          # Compare the signing certificate with the most recent previous release.
-          # A different certificate would prevent Android from updating an installed APK.
+          # Compare certificates using the actual APKs, not a text report whose
+          # formatting can differ between older releases.
           PREVIOUS_TAG="$(gh release list --limit 20 --json tagName --jq '.[].tagName' | grep -Fxv "$GITHUB_REF_NAME" | head -n 1 || true)"
           if [[ -n "$PREVIOUS_TAG" ]]; then
             PREVIOUS_DIR="$RUNNER_TEMP/uswire-previous-release"
             mkdir -p "$PREVIOUS_DIR"
-            gh release download "$PREVIOUS_TAG" --pattern "*-signature.txt" --dir "$PREVIOUS_DIR"
-            PREVIOUS_SIGNATURE="$(grep -h "Signer #1 certificate SHA-256 digest:" "$PREVIOUS_DIR"/*.txt | head -n 1 | sed 's/.*: //' || true)"
-            CURRENT_SIGNATURE="$(grep -h "Signer #1 certificate SHA-256 digest:" "USWire-$USWIRE_VERSION_NAME-signature.txt" | head -n 1 | sed 's/.*: //' || true)"
+            gh release download "$PREVIOUS_TAG" --pattern "USWire-*.apk" --dir "$PREVIOUS_DIR"
+            PREVIOUS_APK="$(find "$PREVIOUS_DIR" -maxdepth 1 -type f -name 'USWire-*.apk' -print -quit)"
+            if [[ -z "$PREVIOUS_APK" || ! -s "$PREVIOUS_APK" ]]; then
+              echo "::error::Could not download the APK from previous release $PREVIOUS_TAG."
+              exit 1
+            fi
+            "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$PREVIOUS_APK" > "$RUNNER_TEMP/uswire-previous-signature.txt"
+            CURRENT_SIGNATURE="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "USWire-$USWIRE_VERSION_NAME-signature.txt" | head -n 1 | tr '[:upper:]' '[:lower:]')"
+            PREVIOUS_SIGNATURE="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "$RUNNER_TEMP/uswire-previous-signature.txt" | head -n 1 | tr '[:upper:]' '[:lower:]')"
             if [[ -z "$PREVIOUS_SIGNATURE" || -z "$CURRENT_SIGNATURE" ]]; then
-              echo "::error::Could not verify the previous and current signing certificate fingerprints."
+              echo "::error::Could not extract the signing certificate SHA-256 digest from the current or previous APK."
+              echo "Current signature report:"
+              cat "USWire-$USWIRE_VERSION_NAME-signature.txt"
+              echo "Previous signature report:"
+              cat "$RUNNER_TEMP/uswire-previous-signature.txt"
               exit 1
             fi
             if [[ "$PREVIOUS_SIGNATURE" != "$CURRENT_SIGNATURE" ]]; then
