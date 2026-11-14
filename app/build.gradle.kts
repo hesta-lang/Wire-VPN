@@ -23,8 +23,8 @@ android {
         applicationId = "com.hestalang.uswire"
         minSdk = 29
         targetSdk = 35
-        versionCode = providers.gradleProperty("versionCode").orElse("4").get().toInt()
-        versionName = providers.gradleProperty("versionName").orElse("0.3.1-alpha").get()
+        versionCode = providers.gradleProperty("versionCode").orElse("7").get().toInt()
+        versionName = providers.gradleProperty("versionName").orElse("0.4.0-alpha").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
