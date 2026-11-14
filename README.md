@@ -22,7 +22,7 @@ El workflow **Publish Android Release** se ejecuta al publicar una etiqueta Git 
 
 En **Settings → Secrets and variables → Actions**, crea estos cuatro Repository secrets:
 
-- `USWIRE_KEYSTORE_BASE64`: keystore JKS/PKCS12 codificado en Base64.
+- `USWIRE_KEYSTORE_BASE64`: keystore JKS codificado en Base64.
 - `USWIRE_STORE_PASSWORD`: contraseña del keystore.
 - `USWIRE_KEY_ALIAS`: alias de la clave de firma.
 - `USWIRE_KEY_PASSWORD`: contraseña de la clave.
