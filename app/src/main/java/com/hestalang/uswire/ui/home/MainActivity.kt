@@ -2,18 +2,21 @@ package com.hestalang.uswire.ui.home
 
 import android.app.Activity
 import android.content.Intent
+import android.content.ActivityNotFoundException
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.VpnService
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.view.Gravity
 import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -26,6 +29,8 @@ import com.hestalang.uswire.core.model.VpnState
 import com.hestalang.uswire.data.local.AndroidKeystoreConfigRepository
 import com.hestalang.uswire.domain.usecase.ImportConfigUseCase
 import com.hestalang.uswire.vpn.WireGuardController
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
     private lateinit var contentFrame: FrameLayout
@@ -33,6 +38,11 @@ class MainActivity : Activity() {
     private var currentPage = PAGE_HOME
     private var vpnState = VpnState.DISCONNECTED
     private var vpnError: String? = null
+    private var savedConfig: VpnConfig? = null
+    private var profileLoaded = false
+    private var profileLoadInProgress = false
+    private var importProgressDialog: AlertDialog? = null
+    private val ioExecutor = Executors.newSingleThreadExecutor()
 
     private val configRepository by lazy {
         AndroidKeystoreConfigRepository(applicationContext)
@@ -55,6 +65,7 @@ class MainActivity : Activity() {
         vpnState = wireGuardController.currentState()
         buildApplicationShell()
         renderPage(PAGE_HOME)
+        loadSavedProfile()
     }
 
     private fun buildApplicationShell() {
@@ -169,7 +180,7 @@ class MainActivity : Activity() {
     }
 
     private fun renderHome(content: LinearLayout) {
-        val config = configRepository.load()
+        val config = savedConfig
         addText(content, "TU CONEXIÓN", 11f, COLOR_BLUE_LIGHT, true)
         addText(content, "Tu red.\nBajo tu control.", 31f, COLOR_TEXT, true)
         addText(
@@ -306,7 +317,7 @@ class MainActivity : Activity() {
     }
 
     private fun renderProfiles(content: LinearLayout) {
-        val config = configRepository.load()
+        val config = savedConfig
         addText(content, "BIBLIOTECA", 11f, COLOR_BLUE_LIGHT, true)
         addText(content, "Tus perfiles", 30f, COLOR_TEXT, true)
         addText(content, "Importa y administra tu configuración WireGuard.", 14f, COLOR_MUTED)
@@ -427,9 +438,23 @@ class MainActivity : Activity() {
             .setMessage("Se borrará la configuración guardada en este dispositivo. El túnel activo no se detendrá automáticamente.")
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Eliminar") { _, _ ->
-                configRepository.clear()
-                Toast.makeText(this, "Perfil eliminado", Toast.LENGTH_SHORT).show()
-                renderPage(PAGE_PROFILES)
+                ioExecutor.execute {
+                    val result = runCatching { configRepository.clear() }
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        if (result.isSuccess) {
+                            savedConfig = null
+                            Toast.makeText(this, "Perfil eliminado", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(
+                                this,
+                                "No se pudo eliminar el perfil guardado.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        renderPage(PAGE_PROFILES)
+                    }
+                }
             }
             .show()
     }
@@ -534,16 +559,91 @@ class MainActivity : Activity() {
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density + 0.5f).toInt()
 
+    /**
+     * Opens Android's Storage Access Framework with the common MIME types used
+     * by providers for WireGuard .conf files. Reading/parsing is done later on
+     * the IO executor, never on the main thread.
+     */
     private fun openConfigPicker() {
+        if (importProgressDialog?.isShowing == true) return
+
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf(
+                    "text/plain",
+                    "application/octet-stream",
+                    "application/x-wireguard-config"
+                )
+            )
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+            putExtra(Intent.EXTRA_LOCAL_ONLY, true)
         }
-        startActivityForResult(intent, REQUEST_CONFIG)
+
+        try {
+            startActivityForResult(intent, REQUEST_CONFIG)
+        } catch (_: ActivityNotFoundException) {
+            val fallback = Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+            try {
+                startActivityForResult(
+                    Intent.createChooser(fallback, "Seleccionar perfil WireGuard"),
+                    REQUEST_CONFIG
+                )
+            } catch (error: Exception) {
+                Toast.makeText(
+                    this,
+                    "No se encontró un selector de archivos compatible.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        } catch (error: Exception) {
+            Toast.makeText(
+                this,
+                "No se pudo abrir el selector: ${error.localizedMessage ?: "error"}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun loadSavedProfile(onLoaded: ((VpnConfig?) -> Unit)? = null) {
+        if (profileLoadInProgress) {
+            onLoaded?.invoke(savedConfig)
+            return
+        }
+        profileLoadInProgress = true
+        ioExecutor.execute {
+            val result = runCatching { configRepository.load() }
+            runOnUiThread {
+                profileLoadInProgress = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                result.onSuccess { savedConfig = it }
+                    .onFailure {
+                        savedConfig = null
+                        Toast.makeText(
+                            this,
+                            "No se pudo leer el perfil guardado.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                profileLoaded = true
+                if (onLoaded == null) renderPage(currentPage) else onLoaded(savedConfig)
+            }
+        }
     }
 
     private fun requestVpnPermissionAndConnect() {
-        val config = configRepository.load()
+        if (!profileLoaded) {
+            Toast.makeText(this, "Cargando perfil guardado…", Toast.LENGTH_SHORT).show()
+            loadSavedProfile()
+            return
+        }
+
+        val config = savedConfig
         if (config == null) {
             Toast.makeText(this, "Primero importa un perfil .conf.", Toast.LENGTH_LONG).show()
             bottomNavigation.selectedItemId = PAGE_PROFILES
@@ -558,7 +658,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun connectSavedConfig(config: VpnConfig? = configRepository.load()) {
+    private fun connectSavedConfig(config: VpnConfig? = savedConfig) {
         if (config == null) {
             Toast.makeText(this, "No hay un perfil guardado.", Toast.LENGTH_LONG).show()
             renderPage(PAGE_PROFILES)
@@ -606,36 +706,42 @@ class MainActivity : Activity() {
             REQUEST_CONFIG -> {
                 if (resultCode != RESULT_OK) return
                 val uri = data?.data ?: return
-                val configContent = try {
-                    contentResolver.openInputStream(uri)
-                        ?.bufferedReader(Charsets.UTF_8)
-                        ?.use { it.readText() }
-                } catch (_: Exception) {
-                    null
-                }
+                importConfigFromUri(uri)
+            }
+        }
+    }
 
-                if (configContent.isNullOrBlank()) {
+    private fun importConfigFromUri(uri: android.net.Uri) {
+        if (importProgressDialog?.isShowing == true) return
+        showImportProgress()
+
+        ioExecutor.execute {
+            val result: Result<VpnConfig> = try {
+                val displayName = queryDisplayName(uri)
+                val contents = readConfigContents(uri)
+                importConfig.execute(displayName, contents)
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
+
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                importProgressDialog?.dismiss()
+                importProgressDialog = null
+
+                result.onSuccess { config ->
+                    savedConfig = config
+                    profileLoaded = true
                     Toast.makeText(
                         this,
-                        "No se pudo leer el archivo seleccionado.",
+                        "Perfil importado y guardado cifrado.",
                         Toast.LENGTH_LONG
                     ).show()
-                    return
-                }
-
-                val displayName = uri.lastPathSegment
-                    ?.substringAfterLast('/')
-                    ?.takeIf { it.isNotBlank() }
-                    ?: "WireGuard.conf"
-
-                val result = importConfig.execute(displayName, configContent)
-                result.onSuccess {
-                    Toast.makeText(this, "Perfil importado y guardado cifrado.", Toast.LENGTH_LONG).show()
                     renderPage(PAGE_PROFILES)
-                }.onFailure {
+                }.onFailure { error ->
                     Toast.makeText(
                         this,
-                        it.localizedMessage ?: "El perfil WireGuard no es válido.",
+                        error.localizedMessage ?: "No se pudo importar el perfil WireGuard.",
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -643,7 +749,89 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun showImportProgress() {
+        val progressLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(24), dp(8), dp(24), dp(8))
+            addView(
+                ProgressBar(this@MainActivity),
+                LinearLayout.LayoutParams(dp(36), dp(36))
+            )
+            val message = TextView(this@MainActivity).apply {
+                text = "Leyendo y validando el perfil…"
+                textSize = 14f
+                setTextColor(COLOR_TEXT)
+                setPadding(dp(16), 0, 0, 0)
+            }
+            addView(message, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
+
+        importProgressDialog = AlertDialog.Builder(this)
+            .setTitle("Importando configuración")
+            .setView(progressLayout)
+            .setCancelable(false)
+            .create()
+        importProgressDialog?.show()
+    }
+
+    private fun queryDisplayName(uri: android.net.Uri): String {
+        val name = contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) cursor.getString(index) else null
+            } else {
+                null
+            }
+        }
+
+        return name?.takeIf { it.isNotBlank() }
+            ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+            ?: "WireGuard.conf"
+    }
+
+    private fun readConfigContents(uri: android.net.Uri): String {
+        val input = contentResolver.openInputStream(uri)
+            ?: throw IllegalArgumentException("El proveedor no pudo abrir el archivo seleccionado.")
+
+        val output = ByteArrayOutputStream()
+        input.use { stream ->
+            val buffer = ByteArray(8192)
+            var totalBytes = 0
+            while (true) {
+                val count = stream.read(buffer)
+                if (count < 0) break
+                totalBytes += count
+                require(totalBytes <= MAX_CONFIG_BYTES) {
+                    "El archivo supera el límite de 1 MB para perfiles WireGuard."
+                }
+                output.write(buffer, 0, count)
+            }
+        }
+
+        val contents = output.toByteArray().toString(Charsets.UTF_8).removePrefix("\uFEFF")
+        require(contents.isNotBlank()) { "El archivo seleccionado está vacío." }
+        require(contents.contains("[Interface]", ignoreCase = true)) {
+            "El archivo no parece ser una configuración WireGuard: falta [Interface]."
+        }
+        return contents
+    }
+
+    override fun onDestroy() {
+        importProgressDialog?.dismiss()
+        importProgressDialog = null
+        ioExecutor.shutdown()
+        super.onDestroy()
+    }
+
     companion object {
+        private const val MAX_CONFIG_BYTES = 1024 * 1024
         private const val PAGE_HOME = 1
         private const val PAGE_PROFILES = 2
         private const val PAGE_SETTINGS = 3
