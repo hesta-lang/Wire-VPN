@@ -282,6 +282,7 @@ class MainActivity : Activity() {
         }
         action.isEnabled = !busy && (config != null || vpnState == VpnState.ERROR)
         statusBody.addView(action, matchWrap())
+        content.addView(statusCard, matchWrap())
 
         addSpace(content, 18)
         addText(content, "VISTA GENERAL", 11f, COLOR_MUTED, true)
