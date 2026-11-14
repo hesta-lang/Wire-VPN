@@ -9,7 +9,7 @@
 - data/local: encrypted local profile storage using Android Keystore and AES-GCM.
 - data/validation: structural checks followed by the official WireGuard configuration parser.
 - vpn: singleton adapter around the official WireGuard Tunnel GoBackend.
-- ui/home: profile import and VPN connect/disconnect controls.
+- ui/home: launcher-style navigation, profile management, privacy settings, and VPN controls.\n- UI IO executor: SAF document lookup, bounded file reads, WireGuard parsing, encrypted persistence, and saved-profile loading run off the main thread to avoid input freezes.
 
 ## Tunnel lifecycle
 
