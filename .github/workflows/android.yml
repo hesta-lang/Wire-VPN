@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build:
-    name: Build and test Android app
+    name: Test and build debug APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -32,43 +32,16 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Run unit tests and assemble debug APK
-        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Run unit tests
+        run: gradle --no-daemon testDebugUnitTest
 
-      - name: Upload debug APK
+      - name: Build debug APK for testing
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload debug APK (testing only)
         uses: actions/upload-artifact@v4
         with:
-          name: USWire-0.3.1-alpha-debug
+          name: USWire-debug-${{ github.run_number }}
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-
-      - name: Prepare release signing key
-        env:
-          USWIRE_KEYSTORE_BASE64: ${{ secrets.USWIRE_KEYSTORE_BASE64 }}
-          USWIRE_STORE_PASSWORD: ${{ secrets.USWIRE_STORE_PASSWORD }}
-          USWIRE_KEY_ALIAS: ${{ secrets.USWIRE_KEY_ALIAS }}
-          USWIRE_KEY_PASSWORD: ${{ secrets.USWIRE_KEY_PASSWORD }}
-        run: |
-          if [ -z "$USWIRE_KEYSTORE_BASE64" ] || [ -z "$USWIRE_STORE_PASSWORD" ] || [ -z "$USWIRE_KEY_ALIAS" ] || [ -z "$USWIRE_KEY_PASSWORD" ]; then
-            echo "USWire release signing secrets are not configured; skipping signed release."
-            exit 0
-          fi
-          echo "$USWIRE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/uswire-release.jks"
-          echo "USWIRE_KEYSTORE_PATH=$RUNNER_TEMP/uswire-release.jks" >> "$GITHUB_ENV"
-          echo "USWIRE_RELEASE_SIGNING_READY=true" >> "$GITHUB_ENV"
-
-      - name: Assemble signed release APK
-        if: env.USWIRE_RELEASE_SIGNING_READY == 'true'
-        env:
-          USWIRE_STORE_PASSWORD: ${{ secrets.USWIRE_STORE_PASSWORD }}
-          USWIRE_KEY_ALIAS: ${{ secrets.USWIRE_KEY_ALIAS }}
-          USWIRE_KEY_PASSWORD: ${{ secrets.USWIRE_KEY_PASSWORD }}
-        run: gradle --no-daemon assembleRelease
-
-      - name: Upload signed release APK
-        if: env.USWIRE_RELEASE_SIGNING_READY == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: USWire-0.3.1-alpha-release-signed
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
+          retention-days: 14
