@@ -98,7 +98,7 @@ jobs:
 
           CURRENT_REPORT="USWire-$USWIRE_VERSION_NAME-signature.txt"
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK_NAME" > "$CURRENT_REPORT"
-          CURRENT_SIGNATURE="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "$CURRENT_REPORT" | head -n 1 | tr '[:upper:]' '[:lower:]')"
+          CURRENT_SIGNATURE="$(sed -nE 's/.*certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "$CURRENT_REPORT" | head -n 1 | tr '[:upper:]' '[:lower:]')"
           if [[ -z "$CURRENT_SIGNATURE" ]]; then
             echo "::error::Could not read the current APK signing certificate."
             cat "$CURRENT_REPORT"
@@ -126,7 +126,7 @@ jobs:
             fi
 
             "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$PREVIOUS_APK" > "$RUNNER_TEMP/uswire-previous-signature.txt"
-            PREVIOUS_SIGNATURE="$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "$RUNNER_TEMP/uswire-previous-signature.txt" | head -n 1 | tr '[:upper:]' '[:lower:]')"
+            PREVIOUS_SIGNATURE="$(sed -nE 's/.*certificate SHA-256 digest: ([[:xdigit:]]+).*$/\1/ip' "$RUNNER_TEMP/uswire-previous-signature.txt" | head -n 1 | tr '[:upper:]' '[:lower:]')"
 
             if [[ -z "$PREVIOUS_SIGNATURE" ]]; then
               echo "::error::Could not read the previous APK signing certificate."
